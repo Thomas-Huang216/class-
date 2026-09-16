@@ -1,0 +1,6 @@
+{
+  "name": "class management",
+  "description": "class management 智慧班級管理工作台，整合隨機抽號、課堂點名與成績系統、每日雙人值日生輪值與黑板投影模式。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

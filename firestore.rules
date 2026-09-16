@@ -1,0 +1,145 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // 輔助函式：身分與權限判定 (Helper Functions)
+    // ==========================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 取得使用者檔案資料
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // 檢查使用者檔案是否存在
+    function userExists() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // 判定最高管理員
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'stu410018@shsh.tw' ||
+        (userExists() && getUserData().role == 'admin')
+      );
+    }
+
+    // 判定合格教師身分 (只有合格教師才能寫入與修改學生成績)
+    function isTeacher() {
+      return isSuperAdmin() || (
+        userExists() &&
+        getUserData().role == 'teacher' &&
+        getUserData().isApprovedTeacher == true
+      );
+    }
+
+    // 判定學生身分 (學生只能讀取個人與班級成績，嚴禁寫入或修改)
+    function isStudent() {
+      return isSignedIn() && (
+        !isTeacher() ||
+        (userExists() && getUserData().role == 'student')
+      );
+    }
+
+    // 判定是否為使用者本人
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ==========================================
+    // 預設規則：預設全域拒絕 (Deny by default)
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // 1. 使用者帳號集合 (/users)
+    // ==========================================
+    match /users/{userId} {
+      // 讀取：本人、合格教師或管理員可讀取
+      allow read: if isOwner(userId) || isTeacher() || isSuperAdmin();
+      // 註冊建立：本人可建立自己的使用者檔案
+      allow create: if isOwner(userId);
+      // 更新：本人可更新個人基礎資料；管理員可審核與指派身分 (如批准教師)
+      allow update: if isOwner(userId) || isSuperAdmin();
+      // 刪除：僅管理員可刪除帳號
+      allow delete: if isSuperAdmin();
+    }
+
+    // ==========================================
+    // 2. 學生名冊與成績資料集合 (/students)
+    //    ★ 核心區分：老師能寫入與修改成績，學生只能看成績與名冊
+    // ==========================================
+    match /students/{studentId} {
+      // 讀取權限：
+      // - 登入者可檢視學生名冊 (供點名出缺席與值日生輪值查閱)
+      allow read: if isSignedIn();
+
+      // 寫入與修改權限 (Create, Update, Delete)：
+      // - 嚴格限制：僅合格教師與管理員可新增學生、修改或更新成績
+      // - 學生完全無法寫入或竄改成份 (嚴格 allow write: false for students)
+      // - 分數邊界檢查：成績必須限制於 0 ~ 100 分之間
+      allow create, update: if isTeacher() && (
+        !request.resource.data.keys().hasAll(['points']) ||
+        (request.resource.data.points >= 0 && request.resource.data.points <= 100)
+      );
+      
+      allow delete: if isTeacher() || isSuperAdmin();
+    }
+
+    // ==========================================
+    // 3. 課堂點名紀錄 (/attendance)
+    // ==========================================
+    match /attendance/{attendanceId} {
+      // 學生登入後可查看出缺席點名狀況 (唯讀)
+      allow read: if isSignedIn();
+      // 只有合格老師能建立與修改點名紀錄
+      allow write: if isTeacher();
+    }
+
+    // ==========================================
+    // 4. 平常成績加扣分稽核日誌 (/point_logs)
+    // ==========================================
+    match /point_logs/{logId} {
+      // 讀取：老師可查看所有評分紀錄；學生僅可查閱自己獲得的加扣分歷程
+      allow read: if isTeacher() || (
+        isSignedIn() && (
+          resource.data.studentId == request.auth.uid ||
+          (resource.data.email != null && resource.data.email == request.auth.token.email)
+        )
+      );
+      // 寫入：僅合格老師可發起加扣分評分紀錄 (不可竄改)
+      allow create: if isTeacher();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ==========================================
+    // 5. 班級配置與人數資訊 (/classes)
+    // ==========================================
+    match /classes/{classId} {
+      allow read: if true;
+      allow write: if isTeacher();
+    }
+
+    // ==========================================
+    // 6. 值日生排程設定 (/classes_duty_settings)
+    // ==========================================
+    match /classes_duty_settings/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+
+    // ==========================================
+    // 7. 隨堂筆記與公告 (/classes_memo)
+    // ==========================================
+    match /classes_memo/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher();
+    }
+  }
+}

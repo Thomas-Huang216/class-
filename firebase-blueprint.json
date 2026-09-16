@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role management and teacher approval status",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Auth UID" },
+        "name": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "teacher", "student", "pending_teacher"] },
+        "isApprovedTeacher": { "type": "boolean" },
+        "approvedBy": { "type": "string", "maxLength": 100 },
+        "classId": { "type": "string", "maxLength": 30 },
+        "seatNumber": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "email"]
+    },
+    "StudentRecord": {
+      "title": "StudentRecord",
+      "description": "Student in class roster with points and seat number",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "seatNumber": { "type": "number" },
+        "name": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 100 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "classId": { "type": "string", "maxLength": 30 },
+        "grade": { "type": "string", "enum": ["一年級", "二年級", "三年級"] },
+        "points": { "type": "number" },
+        "note": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "seatNumber", "name", "classId", "points"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily or period attendance snapshot taken by teacher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "classId": { "type": "string", "maxLength": 30 },
+        "date": { "type": "string", "maxLength": 20 },
+        "period": { "type": "string", "maxLength": 30 },
+        "teacherUid": { "type": "string", "maxLength": 128 },
+        "teacherName": { "type": "string", "maxLength": 50 },
+        "note": { "type": "string", "maxLength": 200 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "classId", "date", "teacherUid"]
+    },
+    "PointLog": {
+      "title": "PointLog",
+      "description": "Log of score additions and deductions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "studentId": { "type": "string", "maxLength": 50 },
+        "studentName": { "type": "string", "maxLength": 50 },
+        "seatNumber": { "type": "number" },
+        "classId": { "type": "string", "maxLength": 30 },
+        "delta": { "type": "number" },
+        "reason": { "type": "string", "maxLength": 100 },
+        "teacherUid": { "type": "string", "maxLength": 128 },
+        "teacherName": { "type": "string", "maxLength": 50 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "studentId", "classId", "delta", "reason", "teacherUid"]
+    },
+    "ClassData": {
+      "title": "ClassData",
+      "description": "Class configuration and student count",
+      "type": "object",
+      "properties": {
+        "classId": { "type": "string", "maxLength": 30 },
+        "grade": { "type": "string", "enum": ["一年級", "二年級", "三年級"] },
+        "className": { "type": "string", "maxLength": 30 },
+        "fullName": { "type": "string", "maxLength": 50 },
+        "totalStudents": { "type": "number" },
+        "teacherUid": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["classId", "totalStudents"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and role permissions"
+    },
+    "/students/{studentId}": {
+      "schema": "StudentRecord",
+      "description": "Class students under teachers management"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance history records"
+    },
+    "/point_logs/{logId}": {
+      "schema": "PointLog",
+      "description": "History logs for student score additions and deductions"
+    },
+    "/classes/{classId}": {
+      "schema": "ClassData",
+      "description": "Classroom settings and student capacities"
+    }
+  }
+}
